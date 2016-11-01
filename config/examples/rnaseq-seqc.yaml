@@ -11,3 +11,4 @@ details:
       strandedness: unstranded
 upload:
   dir: ../final
+  checksum: md5
