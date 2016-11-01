@@ -8,6 +8,7 @@ import sys
 from bcbio.distributed import objectstore
 from bcbio.provenance import do
 from bcbio.upload import filesystem
+from bcbio.upload import checksum
 
 def _update_val(key, val):
     if key == "mtime":
@@ -40,6 +41,11 @@ def update_file(finfo, sample_info, config):
         bucket = conn.create_bucket(config["bucket"], location=config.get("region", "us-east-1"))
 
     for fname, orig_keyname in to_transfer:
+        checksum_type = config.get("checksum", None)
+        if checksum_type is not None:
+            file_checksum = getattr(checksum, checksum_type)(fname)
+            finfo['checksum-%s' % checksum_type] = file_checksum
+
         keyname = os.path.join(config.get("folder", ""), orig_keyname)
         key = bucket.get_key(keyname) if bucket else None
         modified = datetime.datetime.fromtimestamp(email.utils.mktime_tz(
@@ -79,7 +85,18 @@ def _upload_file_aws_cli(local_fname, bucket, keyname, config=None, mditems=None
             args += ["--region", config.get("region")]
         if config.get("reduced_redundancy"):
             args += ["--storage-class", "REDUCED_REDUNDANCY"]
-    cmd = [os.path.join(os.path.dirname(sys.executable), "aws"), "s3", "cp"] + args + \
+
+    metadata_kvs = []
+    if mditems:
+        for name, val in mditems.iteritems():
+            val = _update_val(name, val)
+            if val:
+                metadata_kvs += ["%s=%s" % (name, val)]
+    metadata = ["--metadata", ','.join(metadata_kvs)]
+    encryption = ["--sse", "AES256"]
+
+    cmd = [os.path.join(os.path.dirname(sys.executable), "aws"), "s3", "cp"] + \
+          args + metadata + encryption + \
           [local_fname, s3_fname]
     do.run(cmd, "Upload to s3: %s %s" % (bucket, keyname))
 
