@@ -41,7 +41,7 @@ def update_file(finfo, sample_info, config):
         bucket = conn.create_bucket(config["bucket"], location=config.get("region", "us-east-1"))
 
     for fname, orig_keyname in to_transfer:
-        checksum_type = config.get("checksum", None)
+        checksum_type = config.get("checksum", "md5")
         if checksum_type is not None:
             file_checksum = getattr(checksum, checksum_type)(fname)
             finfo['checksum-%s' % checksum_type] = file_checksum
